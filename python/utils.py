@@ -1,5 +1,6 @@
 from math import sqrt
 import numpy as np
+import datetime
 
 vec = np.array([[40.126666666666665, 116.6152777777778],
   [39.986944444444454, 116.29055555555556],
@@ -191,3 +192,44 @@ def get_nearest_grid(station_id):
 
 def get_nearest_station_v4(grid_id):
     return station_aq[grid_aq.index(grid_id)]
+
+def fillNA(date_serise, value_serise, method = 'mean'):
+    method_list = ['random', 'mean']
+    date = [(datetime.datetime(2017,1,1,0,0,0) + datetime.timedelta(hours=i)).isoformat(' ') for i in range(365*24)]
+    dic = {}
+    for d in date:
+        if d in date_serise:
+            dic[d] = value_serise[date_serise.index(d)]
+        else:
+            dic[d] = 'NA'
+
+    if method == 'random':
+        mean = np.mean(value_serise)
+        std = np.std(value_serise)
+        for k in dic.keys():
+            if dic[k] == 'NA':
+                dic[k] = np.random.normal(mean, std)
+        return list(dic.keys()), list(dic.values())
+
+    elif method == 'mean':
+        temp_dic = {}
+        for key in dic.keys():
+            if dic[key] == 'NA':
+                temp_dic[key] = (search_near_value(key, dic, 1) + search_near_value(key, dic, -1)) / 2
+
+        for key in dic.keys():
+            if dic[key] == 'NA':
+                dic[key] = temp_dic[key]
+        return list(dic.keys()), list(dic.values())
+
+    else:
+        print("method list : ", method_list)
+
+
+def search_near_value(key, dic, direction=1, length=0):
+    if dic[key] != 'NA':
+        return dic[key]
+    else:
+        ind = list(dic.keys()).index(key)
+        next_ind = (ind + direction) % len(dic.keys())
+        return search_near_value(list(dic.keys())[next_ind], dic, direction, length+1)
