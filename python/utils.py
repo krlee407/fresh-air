@@ -193,7 +193,7 @@ def get_nearest_grid(station_id):
 def get_nearest_station_v4(grid_id):
     return station_aq[grid_aq.index(grid_id)]
 
-def fillNA(date_serise, value_serise, method = 'mean'):
+def fillNA(date_serise, value_serise, method = 'mean', debug=False):
     method_list = ['random', 'mean']
     date = [(datetime.datetime(2017,1,1,0,0,0) + datetime.timedelta(hours=i)).isoformat(' ') for i in range(365*24)]
     dic = {}
@@ -211,25 +211,63 @@ def fillNA(date_serise, value_serise, method = 'mean'):
                 dic[k] = np.random.normal(mean, std)
         return list(dic.keys()), list(dic.values())
 
-    elif method == 'mean':
+    elif method == 'mean_recursive':
         temp_dic = {}
         for key in dic.keys():
             if dic[key] == 'NA':
-                temp_dic[key] = (search_near_value(key, dic, 1) + search_near_value(key, dic, -1)) / 2
+                temp_dic[key] = (search_near_value(key, dic, 1, debug=debug) + search_near_value(key, dic, -1, debug=debug)) / 2
 
         for key in dic.keys():
             if dic[key] == 'NA':
                 dic[key] = temp_dic[key]
         return list(dic.keys()), list(dic.values())
 
+    date = [(datetime.datetime(2017,1,1,0,0,0) + datetime.timedelta(hours=i)).isoformat(' ') for i in range(365*24)]
+    dummy_value = -1000000
+    value = [dummy_value for _ in range(365*24)]
+
+    for i, d in enumerate(date_serise):
+        #print("deeee: ", date.index(d), i)
+        value[date.index(d)] = value_serise[i]
+
+    if method == 'mean':
+        front_index = search_not_NA_index(value, -1, NA_value=dummy_value)
+        back_index = search_not_NA_index(value, 1, NA_value=dummy_value)
+        while(back_index != -1 and back_index != len(value) - 1):
+            #print(front_index, back_index)
+            mean_value = (value[front_index] + value[back_index]) / 2.0
+            if front_index >= back_index:
+                value[:(back_index)] = [mean_value] * back_index
+                value[(front_index+1):] = [mean_value] * (len(value) - front_index - 1)
+            else:
+                value[(front_index+1):back_index] = [mean_value] * (back_index - front_index - 1)
+            front_index = back_index
+            back_index = search_not_NA_index(value[(back_index+1):], 1) + back_index + 1
+        return date, value
+
     else:
         print("method list : ", method_list)
 
 
-def search_near_value(key, dic, direction=1, length=0):
+def search_near_value(key, dic, direction=1, length=0, debug=False):
+    if debug:
+        print(key, dic[key], length)
     if dic[key] != 'NA':
         return dic[key]
     else:
         ind = list(dic.keys()).index(key)
         next_ind = (ind + direction) % len(dic.keys())
-        return search_near_value(list(dic.keys())[next_ind], dic, direction, length+1)
+        return search_near_value(list(dic.keys())[next_ind], dic, direction, length+1, debug)
+
+def search_not_NA_index(input_list, direction, NA_value = -1):
+    if direction == 1:
+        for i in range(0, len(input_list), 1):
+            if input_list[i] != NA_value:
+                return i        
+
+    if direction == -1:
+        for i in range(len(input_list)-1, -1, -1):
+            if input_list[i] != NA_value:
+                return i
+
+    return -1
